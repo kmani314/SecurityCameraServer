@@ -20,7 +20,7 @@ int main() {
 	int len;
 	std::vector<unsigned char> data;
 
-	const char* outFile = "/Users/Krishna/stream_server/files/index.m3u8";
+	const char* outFile = "/Users/camera-server/video/index.m3u8";
 	const char* templateFile = "../template/test.264";
 
 	struct AVFormatContext* inputContext = NULL;
@@ -95,10 +95,10 @@ int main() {
 	}
 
 	
-	int frameTime;
-	int frameDuration;
+	int64_t frameTime;
+	int64_t frameDuration;
 	
-	int count = 0;
+	int64_t count = 0;
 	
 	AbstractSocket socket = AbstractSocket();
 	socket.listen(8080, 10);
@@ -122,8 +122,7 @@ int main() {
 		socket.read(&len, 4);
 		data.resize(len);
 		socket.read(&data[0], len);
-		std::cout << len << std::endl;
-		frameDuration = outputStream->time_base.den / 10;
+		frameDuration = outputStream->time_base.den / 15;
 		frameTime = count*frameDuration;
 
 		AVPacket packet;
@@ -135,7 +134,7 @@ int main() {
 		packet.data = &data[0];
 		packet.size = len;
 		packet.duration = frameDuration;
-		packet.dts = packet.pts = frameTime / outputStream->time_base.num;
+		packet.dts = packet.pts = frameTime / (int64_t) outputStream->time_base.num;
 		
 		ret = av_interleaved_write_frame(outputContext, &packet);
 		if(ret < 0) {
