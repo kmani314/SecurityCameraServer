@@ -1,7 +1,8 @@
 #include "LibAVHLS.h"
 #include <iostream>
+#include <exception>
 
-class LibAVHLSException {
+class LibAVHLSException : public std::exception {
 	private:
 	const char* msg;
 	public:
@@ -19,6 +20,8 @@ LibAVHLS::~LibAVHLS() {
 
 LibAVHLS::LibAVHLS(const char* templateFile, const char* outFile) {
 	int ret;
+//	av_log_set_level(AV_LOG_ERROR);
+
 	ret = avformat_open_input(&parameterTemplateContext, templateFile, NULL, NULL);
 	if(ret < 0) throw LibAVHLSException("Could not open template file");
 
@@ -46,7 +49,10 @@ LibAVHLS::LibAVHLS(const char* templateFile, const char* outFile) {
 	
 	av_dump_format(HLSOutputContext, 0, outFile, 1);
 
-	ret = avformat_write_header(HLSOutputContext, NULL);
+}
+
+void LibAVHLS::writeHLSHeader() {
+	int ret = avformat_write_header(HLSOutputContext, NULL);
 	if(ret < 0) throw LibAVHLSException("Could not write file header");
 
 }
@@ -73,4 +79,14 @@ void LibAVHLS::writeHLSSegment(unsigned char* data, int len, int msSinceLastFram
 
 	if(av_interleaved_write_frame(HLSOutputContext, &packet) < 0) throw LibAVHLSException("Could not write frame");
 	av_packet_unref(&packet);
+}
+
+void LibAVHLS::setHLSOption(const char* key, int value, int search) {
+	int ret = av_opt_set_int(HLSOutputContext->priv_data, key, value, search);
+	if(ret < 0) throw LibAVHLSException("Could not set option");
+}
+
+void LibAVHLS::setHLSOption(const char* key, const char* value, int search) {
+	int ret = av_opt_set(HLSOutputContext->priv_data, key, value, search);
+	if(ret < 0) throw LibAVHLSException("Could not set option");
 }

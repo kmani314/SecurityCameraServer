@@ -9,6 +9,13 @@ AbstractSocket::AbstractSocket() {
 	if(setsockopt(descriptor, SOL_SOCKET, SO_REUSEADDR, &socketOption, sizeof(socketOption)) < 0) throw SocketException("Could not set socket option"); // set socket options
 	memset(&address, '0', sizeof(address)); 
 }
+AbstractSocket::~AbstractSocket() {
+	close(connectedSocket);
+	close(descriptor);
+}
+AbstractSocket::AbstractSocket(int connected) {
+	descriptor = connectedSocket = connected;
+}
 
 void AbstractSocket::listen(int portNumber, int maxQueue) { // listen on port
 	memset(&address, '0', sizeof(address));

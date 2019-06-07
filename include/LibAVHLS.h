@@ -3,7 +3,9 @@
 extern "C" {
 	#include "libavformat/avformat.h"
 	#include "libavcodec/avcodec.h"
+	#include "libavutil/avutil.h"
 	#include "libavutil/opt.h"
+	#include "libavutil/log.h"
 }
 
 #include <iostream>
@@ -23,5 +25,9 @@ class LibAVHLS {
 	~LibAVHLS(); 
 	
 	void writeHLSSegment(unsigned char*, int, int); 
+	void writeHLSHeader();
+	void setHLSOption(const char*, int, int);
+	void setHLSOption(const char*, const char*, int);
+
 };
 #endif

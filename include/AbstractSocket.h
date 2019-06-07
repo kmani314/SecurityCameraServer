@@ -13,16 +13,17 @@ typedef struct sockaddr_in sockaddr_in;
 
 class AbstractSocket {
 	private:
-	int descriptor;
-	int connectedSocket = -1;
 
 	int socketOption = 1;
 	
 	sockaddr_in address;
 	
 	public:
+	int descriptor;
+	int connectedSocket = -1;
 	AbstractSocket();
-
+	~AbstractSocket();
+	AbstractSocket(int);
 	void listen(int, int);
 	void connect(int, std::string);
 	
