@@ -16,7 +16,7 @@ bool directoryExists(std::string path) {
 }
 
 void cameraThreadWorker(std::string directory, int descriptor) {
-	std::cout << "\033[0;33mWorker Thread " << &std::this_thread::get_id << " opened.\033[0m"  << std::endl;
+	std::cout << "\033[0;33mWorker Thread " << std::this_thread::get_id() << " opened.\033[0m"  << std::endl;
 	
 	AbstractSocket socket = AbstractSocket(descriptor);
 	
@@ -31,18 +31,18 @@ void cameraThreadWorker(std::string directory, int descriptor) {
 
 	try {
 		socket.read(&id, sizeof(int));
-		std::cout << "\033[0;35m[Worker Thread " << &std::this_thread::get_id << "]\033[0;32m Camera UUID is " << id << "\033[0m" << std::endl;
+		std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Camera UUID is " << id << "\033[0m" << std::endl;
 		directory += "/" + std::to_string(id);
 		if(directoryExists(directory)) {
-			std::cout << "\033[0;35m[Worker Thread " << &std::this_thread::get_id << "]\033[0;32m Using previously created directory for camera with UUID " << id << " (" << directory << ")" << std::endl;
+			std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Using previously created directory for camera with UUID " << id << " (" << directory << ")" << std::endl;
 		} else {
 			mkdir(directory.c_str(), 0775);
-			std::cout << "\033[0;35m[Worker Thread " << &std::this_thread::get_id << "]\033[0;32m Creating a directory for new camera with UUID " << id << " (" << directory << ")" << std::endl; 
+			std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Creating a directory for new camera with UUID " << id << " (" << directory << ")" << std::endl; 
 		}
 		directory += "/index.m3u8";
 		
 		hls = new LibAVHLS("../template/test.264", directory.c_str());
-		hls->setHLSOption("hls_time", 10, AV_OPT_SEARCH_CHILDREN);
+		hls->setHLSOption("hls_time", 5, AV_OPT_SEARCH_CHILDREN);
 		hls->setHLSOption("use_localtime", 1, 0);
 		hls->setHLSOption("strftime", 1, 0);
 
@@ -68,8 +68,7 @@ void cameraThreadWorker(std::string directory, int descriptor) {
 			break;
 		}
 	}
-
-	std::cout << "Camera has disconnected. Worker thread " << &std::this_thread::get_id << " closing" << std::endl;
+	std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Camera with UUID " << id << " has disconnected." << " Thread is terminating... \033[0m" << std::endl;
 }
 
 int main(int argc, char** argv) {
