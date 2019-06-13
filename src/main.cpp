@@ -45,7 +45,8 @@ void cameraThreadWorker(std::string directory, int descriptor) {
 		hls->setHLSOption("hls_time", 5, AV_OPT_SEARCH_CHILDREN);
 		hls->setHLSOption("use_localtime", 1, 0);
 		hls->setHLSOption("strftime", 1, 0);
-
+		hls->setHLSOption("hls_list_size", 50000, 0);
+		hls->setHLSOption("hls_delete_threshold", 120960, 0); // keep a weeks worth of video before deleting it
 		hls->writeHLSHeader();
 
 	} catch(std::exception& e) {
