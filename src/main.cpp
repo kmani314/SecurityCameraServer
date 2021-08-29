@@ -1,13 +1,33 @@
-#include "LibAVHLS.h"
+/* #include "LibAVHLS.h" */
+
 #include "AbstractSocket.h"
+#include <opencv2/opencv.hpp>
+#include <math.h>
 #include <vector>
 #include <iostream>
+#include <fstream>
 #include <thread>
 #include <string>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <chrono>
+
+extern "C" {
+	#include "libavformat/avformat.h"
+	#include "libavcodec/avcodec.h"
+	#include "libavutil/avutil.h"
+	#include "libavutil/opt.h"
+	#include "libavutil/log.h"
+	#include <libswscale/swscale.h>
+}
+
+using namespace cv;
+using std::chrono::high_resolution_clock;
+using std::chrono::duration_cast;
+using std::chrono::duration;
+using std::chrono::milliseconds;
 
 bool directoryExists(std::string path) {
 	struct stat info;
@@ -20,49 +40,92 @@ void cameraThreadWorker(std::string directory, int descriptor) {
 	
 	AbstractSocket socket = AbstractSocket(descriptor);
 	
-	std::vector<unsigned char> data;
 	char keepAlive[1];
 	int len;
-	
-	/* Directory Logic*/
-	
-	LibAVHLS *hls;
 	int id;
+
+	AVCodec *codec;
+	AVCodecContext *c= NULL;
+	int frame, got_picture;
+
+	codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+	if (!codec) {
+			fprintf(stderr, "codec not found\n");
+			exit(1);
+	}
+
+	c = avcodec_alloc_context3(codec);
+
+	if((codec->capabilities) & AV_CODEC_CAP_TRUNCATED)
+			(c->flags) |= AV_CODEC_FLAG_TRUNCATED;
+
+	c->height = 480;
+	c->width = 640;
+
+	uint8_t* data = new uint8_t[c->width * c->height];
+
+	if (avcodec_open2(c, codec, NULL) < 0) {
+			fprintf(stderr, "could not open codec\n");
+			exit(1);
+	}
 
 	try {
 		socket.read(&id, sizeof(int));
 		std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Camera UUID is " << id << "\033[0m" << std::endl;
-		directory += "/" + std::to_string(id);
-		if(directoryExists(directory)) {
-			std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Using previously created directory for camera with UUID " << id << " (" << directory << ")" << std::endl;
-		} else {
-			mkdir(directory.c_str(), 0775);
-			std::cout << "\033[0;35m[Worker Thread " << std::this_thread::get_id() << "]\033[0;32m Creating a directory for new camera with UUID " << id << " (" << directory << ")" << std::endl; 
-		}
-		directory += "/index.m3u8";
-		
-		hls = new LibAVHLS("../template/test.264", directory.c_str());
-		hls->setHLSOption("hls_time", 5, AV_OPT_SEARCH_CHILDREN);
-		hls->setHLSOption("use_localtime", 1, 0);
-		hls->setHLSOption("strftime", 1, 0);
-		hls->setHLSOption("hls_list_size", 50000, 0);
-		hls->setHLSOption("hls_flags", "delete_segments", 0); // keep a weeks worth of video before deleting it
-		hls->writeHLSHeader();
-
 	} catch(std::exception& e) {
 		std::cout << e.what() << std::endl;
 		socket.~AbstractSocket();
 		return;
 	}
 
-	
+	AVPacket avpkt;
+	av_init_packet(&avpkt);
+	AVFrame *picture;
+	picture = av_frame_alloc();
+
 	while(1) {
 		try{
-			socket.write(keepAlive, 1);
+			/* socket.write(keepAlive, 1); */
+			using std::chrono::high_resolution_clock;
+			auto t1 = high_resolution_clock::now();
 			socket.read(&len, sizeof(int));
-			data.resize(len);
-			socket.read(&data[0], len);
-			hls->writeHLSSegment(&data[0], len, 70);
+			socket.read(data, len);
+			auto t2 = high_resolution_clock::now();
+			auto ms_int = duration_cast<milliseconds>(t2 - t1);
+			std::cout << ms_int.count() << std::endl;
+			avpkt.size = len;
+			avpkt.data = data;
+
+			avcodec_decode_video2(c, picture, &got_picture, &avpkt);
+
+			if (got_picture) {
+				int w = c->width;
+				int h = c->height;
+				AVFrame dst;
+
+				Mat mat(h, w, CV_8UC3);
+				dst.data[0] = (uint8_t *)mat.data;
+				avpicture_fill( (AVPicture *)&dst, dst.data[0], AV_PIX_FMT_BGR24, w, h);
+
+				enum AVPixelFormat src_pixfmt = (enum AVPixelFormat)picture->format;
+				enum AVPixelFormat dst_pixfmt = AV_PIX_FMT_BGR24;
+				struct SwsContext* convert_ctx = sws_getContext(w, h, src_pixfmt, w, h, dst_pixfmt,
+														SWS_FAST_BILINEAR, NULL, NULL, NULL);
+
+				if(convert_ctx == NULL) {
+						fprintf(stderr, "Cannot initialize the conversion context!\n");
+						exit(1);
+				}
+
+				sws_scale(convert_ctx, picture->data, picture->linesize, 0, h,
+                    dst.data, dst.linesize);
+
+
+
+				imshow("MyVideo", mat);
+				waitKey(1);
+			}
+
 		} catch(std::exception& e) {
 			std::cout << e.what() << std::endl;
 			socket.~AbstractSocket();
@@ -99,8 +162,9 @@ int main(int argc, char** argv) {
 				
 			std::cout << "New Client Connection" << std::endl;
 			
-			std::thread t = std::thread(&cameraThreadWorker, baseDirectory, socket.connectedSocket);
-			t.detach();
+			/* std::thread t = std::thread(&cameraThreadWorker, baseDirectory, socket.connectedSocket); */
+			cameraThreadWorker(baseDirectory, socket.connectedSocket);
+			/* t.detach(); */
 		
 		} catch(std::exception& e){
 			std::cout << e.what() << std::endl;
